@@ -76,8 +76,27 @@ void initCamera(){
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
 
-  config.frame_size = FRAMESIZE_QQVGA;
-  config.jpeg_quality = 14;
+  /* ===== IMAGE SETTINGS ===== */
+
+// ===== VERY FAST (testing) =====
+// config.frame_size = FRAMESIZE_QQVGA;   // 160x120
+// config.jpeg_quality = 12;
+
+// ===== FAST =====
+// config.frame_size = FRAMESIZE_QVGA;    // 320x240
+// config.jpeg_quality = 10;
+
+// ===== BALANCED (RECOMMENDED) =====
+config.frame_size = FRAMESIZE_VGA;       // 640x480
+config.jpeg_quality = 6;
+
+// ===== HIGH DETAIL =====
+// config.frame_size = FRAMESIZE_SVGA;    // 800x600
+// config.jpeg_quality = 6;
+
+// ===== MAX (SLOW / UNSTABLE OVER RADIO) =====
+// config.frame_size = FRAMESIZE_UXGA;    // 1600x1200
+// config.jpeg_quality = 4;
   config.fb_count = 1;
 
   if (esp_camera_init(&config) != ESP_OK) {
@@ -111,7 +130,18 @@ void sendPacket(){
 
 void startCapture(){
 
-  camera_fb_t *fb = esp_camera_fb_get();
+  /* ===== FORCE TRUE CAPTURE TIMING ===== */
+
+  camera_fb_t *fb;
+
+  // discard old buffered frame
+  fb = esp_camera_fb_get();
+  if(fb) esp_camera_fb_return(fb);
+
+  delay(60);  // critical: ensures fresh exposure (QQVGA needs ~50–70ms)
+
+  /* ===== REAL CAPTURE ===== */
+  fb = esp_camera_fb_get();
 
   if(!fb){
     Serial.println("ERR");
@@ -129,7 +159,7 @@ void startCapture(){
 
   esp_camera_fb_return(fb);
 
-  sendPacket(); // send first packet immediately
+  sendPacket();
 }
 
 /* ================= SETUP ================= */
@@ -164,7 +194,7 @@ void loop(){
       cmd.trim();
 
       /* ===== START CAPTURE ===== */
-      if(cmd == "CAPTURE"){
+      if(cmd.startsWith("CAPTURE")){
         sending = false;   // force reset if stuck
         startCapture();
       }
