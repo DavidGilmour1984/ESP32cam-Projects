@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 Serial Camera Receiver</title>
+
+<style>
+body{
+  font-family:Helvetica,Arial,sans-serif;
+  background:#f5f7fb;
+  padding:20px;
+  margin:0;
+}
+
+.card{
+  background:white;
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 10px 25px rgba(0,0,0,0.15);
+  max-width:1100px;
+  margin:auto;
+}
+
+h2,h3{
+  margin-top:0;
+}
+
+button{
+  font-size:20px;
+  padding:10px 20px;
+  margin:5px;
+  background:#2563eb;
+  color:white;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+}
+
+button:disabled{
+  background:#94a3b8;
+  cursor:not-allowed;
+}
+
+textarea{
+  width:100%;
+  height:180px;
+  font-size:12px;
+  margin-top:10px;
+  box-sizing:border-box;
+  font-family:Consolas,monospace;
+  resize:vertical;
+}
+
+img{
+  width:100%;
+  margin-top:20px;
+  border-radius:12px;
+  background:#ddd;
+  min-height:260px;
+  object-fit:contain;
+}
+
+.status{
+  margin-top:10px;
+  font-size:16px;
+  white-space:pre-wrap;
+}
+
+.row{
+  margin-bottom:18px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <h2>ESP32 Serial Camera Receiver</h2>
+
+  <div class="row">
+    <button id="connectBtn" onclick="connectPort()">Connect</button>
+    <button id="captureBtn" onclick="startCapture()" disabled>Capture</button>
+    <button id="downloadBtn" onclick="downloadImage()" disabled>Download</button>
+    <button onclick="clearAll()">Clear</button>
+  </div>
+
+  <div class="status" id="status">Not connected</div>
+
+  <h3>Raw Stream</h3>
+  <textarea id="rawBox"></textarea>
+
+  <h3>Processed Base64 (source of truth)</h3>
+  <textarea id="processedBox"></textarea>
+
+  <h3>Image (live from processed data)</h3>
+  <img id="img">
+
+</div>
+
+<script>
+let port;
+let reader;
+let writer;
+
+let serialBuffer = "";
+let receiving = false;
+let expectedIndex = 0;
+let totalPackets = 0;
+let renderTimer = null;
+
+const rawBox = document.getElementById("rawBox");
+const processedBox = document.getElementById("processedBox");
+const img = document.getElementById("img");
+const statusBox = document.getElementById("status");
+const captureBtn = document.getElementById("captureBtn");
+const downloadBtn = document.getElementById("downloadBtn");
+
+function setStatus(text){
+  statusBox.textContent = text;
+}
+
+function logRaw(line){
+  rawBox.value += line + "\n";
+  rawBox.scrollTop = rawBox.scrollHeight;
+}
+
+function checksum(str){
+  let sum = 0;
+  for(let i = 0; i < str.length; i++){
+    sum += str.charCodeAt(i);
+  }
+  return sum & 0xFF;
+}
+
+function renderFromProcessedBox(){
+  const data = processedBox.value.trim();
+
+  if(data.length < 100){
+    img.src = "";
+    downloadBtn.disabled = true;
+    return;
+  }
+
+  img.src = "data:image/jpeg;base64," + data;
+  downloadBtn.disabled = false;
+}
+
+processedBox.addEventListener("input", () => {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => {
+    renderFromProcessedBox();
+  }, 120);
+});
+
+async function connectPort(){
+  port = await navigator.serial.requestPort();
+  await port.open({ baudRate:115200 });
+
+  const encoder = new TextEncoderStream();
+  encoder.readable.pipeTo(port.writable);
+  writer = encoder.writable.getWriter();
+
+  const decoder = new TextDecoderStream();
+  port.readable.pipeTo(decoder.writable);
+  reader = decoder.readable.getReader();
+
+  captureBtn.disabled = false;
+  setStatus("Connected");
+  readLoop();
+}
+
+async function writeLine(line){
+  if(!writer) return;
+  await writer.write(line + "\n");
+}
+
+async function startCapture(){
+  if(!writer) return;
+
+  receiving = false;
+  expectedIndex = 0;
+  totalPackets = 0;
+
+  rawBox.value = "";
+  processedBox.value = "";
+  img.src = "";
+  downloadBtn.disabled = true;
+
+  setStatus("Capture requested");
+  await writeLine("CAPTURE");
+}
+
+async function readLoop(){
+  while(true){
+    const { value, done } = await reader.read();
+    if(done) break;
+    if(!value) continue;
+
+    serialBuffer += value;
+
+    const lines = serialBuffer.split("\n");
+    serialBuffer = lines.pop();
+
+    for(const rawLine of lines){
+      const line = rawLine.replace(/\r/g, "").trim();
+      if(line){
+        await processLine(line);
+      }
+    }
+  }
+}
+
+async function processLine(line){
+  logRaw(line);
+
+  if(line === "BOOT"){
+    setStatus("Booting");
+    return;
+  }
+
+  if(line === "CAM_OK"){
+    setStatus("Camera ready");
+    return;
+  }
+
+  if(line === "READY"){
+    setStatus("Ready");
+    return;
+  }
+
+  if(line === "CAPTURE_START"){
+    setStatus("Capture starting");
+    return;
+  }
+
+  if(line === "CAPTURE_OK"){
+    setStatus("Capture complete, waiting for packets");
+    return;
+  }
+
+  if(line === "BUSY"){
+    setStatus("Device busy");
+    return;
+  }
+
+  if(line === "END"){
+    receiving = false;
+    renderFromProcessedBox();
+    setStatus("Transfer complete");
+    return;
+  }
+
+  if(line === "DONE"){
+    setStatus("Done");
+    return;
+  }
+
+  if(line.startsWith("ERR")){
+    setStatus(line);
+    receiving = false;
+    return;
+  }
+
+  if(line.startsWith("START,")){
+    const parts = line.split(",");
+    totalPackets = parseInt(parts[1], 10);
+    expectedIndex = 0;
+    receiving = true;
+
+    setStatus("Receiving packet 0 of " + totalPackets);
+    await writeLine(`ACK,-1,0`);
+    return;
+  }
+
+  if(line.startsWith("PKT,") && receiving){
+    const parts = line.split(",");
+    const index = parseInt(parts[1], 10);
+    const chk = parseInt(parts[2], 10);
+    const data = parts.slice(3).join(",");
+
+    if(index !== expectedIndex){
+      setStatus("Packet out of order. Expected " + expectedIndex + " got " + index);
+      await writeLine(`NACK,${expectedIndex}`);
+      return;
+    }
+
+    const localChk = checksum(data);
+
+    if(localChk !== chk){
+      setStatus("Checksum fail on packet " + index);
+      await writeLine(`NACK,${index}`);
+      return;
+    }
+
+    processedBox.value += data;
+    renderFromProcessedBox();
+
+    await writeLine(`ACK,${index},${chk}`);
+
+    expectedIndex++;
+    setStatus("Receiving packet " + expectedIndex + " of " + totalPackets);
+    return;
+  }
+}
+
+function downloadImage(){
+  const data = processedBox.value.trim();
+  if(!data) return;
+
+  const a = document.createElement("a");
+  a.href = "data:image/jpeg;base64," + data;
+  a.download = "image.jpg";
+  a.click();
+}
+
+function clearAll(){
+  rawBox.value = "";
+  processedBox.value = "";
+  img.src = "";
+  receiving = false;
+  expectedIndex = 0;
+  totalPackets = 0;
+  downloadBtn.disabled = true;
+  setStatus(writer ? "Connected" : "Not connected");
+}
+</script>
+
+</body>
+</html>
