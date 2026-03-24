@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LoRa Cam — CSV Manifest</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#09090b; --s1:#111114; --s2:#18181c; --s3:#222228; --border:#2a2a32; --border2:#3a3a46;
+  --text:#e4e4f0; --muted:#52525e; --muted2:#6b6b7a; --cyan:#06b6d4; --cyan-dim:#0e4f5c;
+  --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --purple:#a855f7;
+  --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif; --r:6px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--sans); font-size: 13px; background: var(--bg); color: var(--text);
+  display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+}
+.topbar { display: flex; align-items: center; gap: 16px; padding: 0 20px; height: 48px;
+  background: var(--s1); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.logo { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.15em;
+  color: var(--cyan); display: flex; align-items: center; gap: 8px; }
+.logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan); animation: breathe 3s ease-in-out infinite; }
+@keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.topbar-sep { width: 1px; height: 20px; background: var(--border); }
+.pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+  border-radius: 20px; border: 1px solid var(--border); font-family: var(--mono); font-size: 10px;
+  font-weight: 600; letter-spacing: 0.08em; color: var(--muted2); transition: all .25s; }
+.pill-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.pill.ok { border-color: var(--green); color: var(--green); }
+.pill.rx { border-color: var(--cyan); color: var(--cyan); }
+.pill.rx .pill-dot { animation: blink .7s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.pill.err { border-color: var(--red); color: var(--red); }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.workspace { display: grid; grid-template-columns: 320px 1fr 300px; flex: 1; overflow: hidden; min-height: 0; }
+.panel { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+.panel:last-child { border-right: none; }
+.panel-head { padding: 10px 14px; border-bottom: 1px solid var(--border); font-family: var(--mono);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase;
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.panel-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 14px; }
+.field { margin-bottom: 12px; } .field:last-child { margin-bottom: 0; }
+label { display: block; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 5px; }
+select, input[type="number"], input[type="range"] {
+  width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 7px 10px; color: var(--text); font-family: var(--mono); font-size: 12px; outline: none;
+  transition: border-color .2s; -webkit-appearance: none;
+}
+select:focus, input[type="number"]:focus { border-color: var(--cyan); }
+select option { background: var(--s2); }
+input[type="range"] { padding: 0; height: 4px; cursor: pointer; accent-color: var(--cyan); }
+.range-row { display: flex; align-items: center; gap: 8px; }
+.range-row input[type="range"] { flex: 1; }
+.range-val { font-family: var(--mono); font-size: 12px; color: var(--cyan); min-width: 28px; text-align: right; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--r); border: 1px solid transparent; font-family: var(--mono); font-size: 11px;
+  font-weight: 600; letter-spacing: 0.08em; cursor: pointer; transition: all .15s; text-transform: uppercase;
+  white-space: nowrap; }
+.btn-cyan { background: var(--cyan); color: #000; border-color: var(--cyan); }
+.btn-cyan:hover:not(:disabled) { background: #22d3ee; box-shadow: 0 0 20px rgba(6,182,212,0.35);
+  transform: translateY(-1px); }
+.btn-outline { background: transparent; color: var(--text); border-color: var(--border2); }
+.btn-outline:hover:not(:disabled) { border-color: var(--cyan); color: var(--cyan); }
+.btn-green { background: var(--green); color: #000; border-color: var(--green); }
+.btn-green:hover:not(:disabled) { background: #4ade80; box-shadow: 0 0 20px rgba(34,197,94,0.3);
+  transform: translateY(-1px); }
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.divider { height: 1px; background: var(--border); margin: 14px 0; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
+.stat { background: var(--s2); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; }
+.stat-lbl { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+  color: var(--muted); text-transform: uppercase; margin-bottom: 3px; }
+.stat-val { font-family: var(--mono); font-size: 18px; font-weight: 600; line-height: 1; color: var(--text); }
+.stat-val.c { color: var(--cyan); } .stat-val.g { color: var(--green); } .stat-val.r { color: var(--red); }
+.log { font-family: var(--mono); font-size: 11px; line-height: 1.4; color: var(--text); margin-bottom: 4px;
+  word-break: break-word; }
+.log.ll-sys { color: var(--green); } .log.ll-pkt { color: var(--cyan); } .log.ll-err { color: var(--red); }
+.log.ll-meta { color: var(--muted2); } .log.ll-rep { color: var(--purple); }
+.centerbox { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+  height: 100%; }
+.progress { width: 100%; height: 8px; background: var(--s2); border-radius: 4px; border: 1px solid var(--border);
+  overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--green));
+  transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1); }
+.preview { max-width: 100%; max-height: 100%; border-radius: var(--r); border: 1px solid var(--border);
+  background: var(--s1); }
+.img-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); }
+.repair-box { font-family: var(--mono); font-size: 10px; color: var(--purple); padding: 8px;
+  background: rgba(168, 85, 247, 0.05); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: var(--r);
+  margin-bottom: 8px; max-height: 0; opacity: 0; overflow: hidden; transition: all 200ms; }
+.repair-box.visible { max-height: 200px; opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><div class="logo-dot"></div> LoRa Cam</div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-right">
+    <div class="pill" id="connPill"><div class="pill-dot"></div> <span id="connStatus">OFFLINE</span></div>
+    <div class="pill" id="rxPill"><div class="pill-dot"></div> <span id="rxStatus">—</span></div>
+  </div>
+</div>
+
+<div class="workspace">
+<div class="panel">
+  <div class="panel-head">CONTROLS</div>
+  <div class="panel-body">
+    <div class="field">
+      <label>Baud Rate</label>
+      <select id="baudSel">
+        <option value="9600">9600</option>
+        <option value="115200">115200</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-cyan" id="connectBtn">Connect</button>
+      <button class="btn btn-outline" id="disconnBtn" disabled>Disconnect</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label>Resolution</label>
+      <select id="resSel">
+        <option value="0">QQVGA (160×120)</option>
+        <option value="1" selected>QVGA (320×240)</option>
+        <option value="2">VGA (640×480)</option>
+        <option value="3">SVGA (800×600)</option>
+        <option value="4">UXGA (1600×1200)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Quality</label>
+      <div class="range-row">
+        <input type="range" id="qualRange" min="4" max="63" value="20">
+        <span class="range-val" id="qualVal">20</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Packet Size (chars)</label>
+      <div class="range-row">
+        <input type="range" id="pktRange" min="16" max="64" value="32">
+        <span class="range-val" id="pktVal">32</span>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-green" id="applyBtn" disabled>Apply</button>
+      <button class="btn btn-cyan" id="statusBtn" disabled>Sync</button>
+      <button class="btn btn-cyan" id="captureBtn" disabled>Capture</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label>SD Card</label>
+      <button class="btn btn-ghost" id="listBtn" disabled>List Files</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">IMAGE</div>
+  <div class="panel-body centerbox">
+    <div id="imgEmpty" class="img-empty">
+      <div style="font-size: 40px;">📷</div>
+      <div>No image</div>
+    </div>
+    <img id="preview" class="preview" style="display: none;">
+  </div>
+  <div style="padding: 14px; border-top: 1px solid var(--border); flex-shrink: 0;">
+    <div style="margin-bottom: 8px;">
+      <div style="font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 4px;">Progress</div>
+      <div class="progress"><div class="progress-fill" id="progFill" style="width: 0%;"></div></div>
+      <div style="font-family: var(--mono); font-size: 12px; color: var(--cyan); margin-top: 4px;">
+        <span id="progLabel">—</span>
+      </div>
+    </div>
+    <div class="repair-box" id="repairBox"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">STATS</div>
+  <div class="panel-body" style="overflow-y: auto;">
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-lbl">Received</div>
+        <div class="stat-val c" id="sRecv">0<span style="font-size: 10px; color: var(--muted);"> pkt</span></div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Total</div>
+        <div class="stat-val" id="sTot">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Errors</div>
+        <div class="stat-val r" id="sErr">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Repairs</div>
+        <div class="stat-val p" id="sRep">0</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-lbl">File Size</div>
+        <div class="stat-val" id="fSize">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-lbl">Resolution</div>
+        <div class="stat-val" id="fRes">—</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="btn btn-green" id="dlBtn" disabled style="width: 100%; margin-bottom: 8px;">Download JPEG</button>
+
+    <div style="font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 8px;">LOG</div>
+    <div id="logBox" style="font-size: 10px; line-height: 1.4; max-height: 400px; overflow-y: auto;"></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+let port, reader, writer;
+let serialBuf = "";
+let phase = "idle";
+let totalPkts = 0;
+let totalChunks = 0;
+let currentChunk = 0;
+let received = {};
+let receivedCount = 0;
+let statErrors = 0;
+let statRepairs = 0;
+let settingsDirty = false;
+let repairTimeout = 8000;
+let repairTimer = null;
+let captureStart = 0;
+
+const connectBtn = document.getElementById("connectBtn");
+const disconnBtn = document.getElementById("disconnBtn");
+const captureBtn = document.getElementById("captureBtn");
+const statusBtn = document.getElementById("statusBtn");
+const applyBtn = document.getElementById("applyBtn");
+const listBtn = document.getElementById("listBtn");
+const dlBtn = document.getElementById("dlBtn");
+const preview = document.getElementById("preview");
+const imgEmpty = document.getElementById("imgEmpty");
+const progFill = document.getElementById("progFill");
+const progLabel = document.getElementById("progLabel");
+const repairBox = document.getElementById("repairBox");
+const logBox = document.getElementById("logBox");
+
+document.getElementById("qualRange").addEventListener("input", (e) => {
+  document.getElementById("qualVal").textContent = e.target.value;
+  settingsDirty = true;
+  applyBtn.disabled = false;
+});
+
+document.getElementById("pktRange").addEventListener("input", (e) => {
+  document.getElementById("pktVal").textContent = e.target.value;
+  settingsDirty = true;
+  applyBtn.disabled = false;
+});
+
+document.getElementById("resSel").addEventListener("change", () => {
+  settingsDirty = true;
+  applyBtn.disabled = false;
+});
+
+function setConn(state, text) {
+  const pill = document.getElementById("connPill");
+  pill.className = "pill";
+  if (state === "ok") pill.classList.add("ok");
+  document.getElementById("connStatus").textContent = text;
+}
+
+function setRx(state, text) {
+  const pill = document.getElementById("rxPill");
+  pill.className = "pill";
+  if (state === "ok") pill.classList.add("ok");
+  else if (state === "rx") pill.classList.add("rx");
+  else if (state === "err") pill.classList.add("err");
+  document.getElementById("rxStatus").textContent = text;
+}
+
+function log(msg, cls = "") {
+  const el = document.createElement("div");
+  el.className = "log " + cls;
+  el.textContent = msg;
+  logBox.appendChild(el);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function updateStats() {
+  document.getElementById("sRecv").textContent = receivedCount;
+  document.getElementById("sTot").textContent = totalPkts;
+  document.getElementById("sErr").textContent = statErrors;
+  document.getElementById("sRep").textContent = statRepairs;
+  const pct = totalPkts > 0 ? Math.round((receivedCount / totalPkts) * 100) : 0;
+  progFill.style.width = pct + "%";
+  progLabel.textContent = pct + "%";
+}
+
+function checksum(data) {
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum = (sum + data.charCodeAt(i)) & 0xFF;
+  }
+  return sum;
+}
+
+function assembleAndRender(final = false) {
+  let b64 = "";
+  for (let i = 0; i < totalPkts; i++) {
+    if (received[i] !== undefined) {
+      b64 += received[i];
+    }
+  }
+  if (b64.length < 50) return;
+
+  preview.src = "data:image/jpeg;base64," + b64;
+  preview.style.display = "block";
+  imgEmpty.style.display = "none";
+
+  if (final) {
+    document.getElementById("fSize").textContent = (b64.length * 0.75 / 1024).toFixed(1) + " KB";
+    dlBtn.disabled = false;
+    window._lastB64 = b64;
+    setRx("ok", "DONE");
+  }
+}
+
+function getMissing() {
+  const missing = [];
+  for (let i = 0; i < totalPkts; i++) {
+    if (received[i] === undefined) missing.push(i);
+  }
+  return missing;
+}
+
+async function requestRepair() {
+  const missing = getMissing();
+  if (missing.length === 0) {
+    if (currentChunk < totalChunks - 1) {
+      currentChunk++;
+      const msg = "CHUNK," + currentChunk;
+      log("> " + msg, "ll-sys");
+      await writeLine(msg);
+    } else {
+      phase = "idle";
+      clearTimeout(repairTimer);
+      assembleAndRender(true);
+      updateStats();
+    }
+    return;
+  }
+
+  statRepairs++;
+  const msg = "REPAIR," + missing.join(",");
+  repairBox.textContent = "⟳ Requesting " + missing.length + " missing packet(s)";
+  repairBox.classList.add("visible");
+  log("> " + msg, "ll-rep");
+  await writeLine(msg);
+
+  clearTimeout(repairTimer);
+  repairTimer = setTimeout(() => {
+    if (phase === "repairing") {
+      log("// Repair timeout — retrying", "ll-meta");
+      requestRepair();
+    }
+  }, repairTimeout);
+}
+
+async function connectPort() {
+  try {
+    const baud = parseInt(document.getElementById("baudSel").value, 10);
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: baud });
+
+    const enc = new TextEncoderStream();
+    enc.readable.pipeTo(port.writable);
+    writer = enc.writable.getWriter();
+
+    const dec = new TextDecoderStream();
+    port.readable.pipeTo(dec.writable);
+    reader = dec.readable.getReader();
+
+    connectBtn.disabled = true;
+    disconnBtn.disabled = false;
+    captureBtn.disabled = false;
+    statusBtn.disabled  = false;
+    listBtn.disabled    = false;
+
+    setConn("ok", "CONNECTED");
+    setRx(null, null);
+    log("// Connected @ " + baud + " baud", "ll-meta");
+    readLoop();
+    requestStatus();
+  } catch(e) {
+    log("// Connect failed: " + e.message, "ll-err");
+  }
+}
+
+async function disconnectPort() {
+  try {
+    if (reader) { await reader.cancel(); reader = null; }
+    if (writer) { await writer.close();  writer = null; }
+    if (port)   { await port.close();    port = null; }
+  } catch(e) {}
+  connectBtn.disabled = false;
+  disconnBtn.disabled = true;
+  captureBtn.disabled = true;
+  statusBtn.disabled  = true;
+  listBtn.disabled    = true;
+  setConn("", "OFFLINE");
+  setRx(null, null);
+  log("// Disconnected", "ll-meta");
+}
+
+async function writeLine(line) {
+  if (!writer) return;
+  await writer.write(line + "\n");
+}
+
+async function applySettings() {
+  const fs  = document.getElementById("resSel").value;
+  const q   = document.getElementById("qualRange").value;
+  const ps  = document.getElementById("pktRange").value;
+  const cmd = "CONFIG," + fs + "," + q + "," + ps;
+  log("> " + cmd, "ll-sys");
+  await writeLine(cmd);
+  settingsDirty = false;
+  applyBtn.disabled = true;
+}
+
+async function requestStatus() {
+  if (!writer) return;
+  log("> STATUS", "ll-sys");
+  await writeLine("STATUS");
+}
+
+async function startCapture() {
+  if (!writer) return;
+  if (settingsDirty) await applySettings();
+
+  phase         = "blasting";
+  totalPkts     = 0;
+  received      = {};
+  receivedCount = 0;
+  statErrors    = 0;
+  statRepairs   = 0;
+  captureStart  = Date.now();
+
+  progFill.style.width = "0%";
+  progLabel.textContent = "—";
+  dlBtn.disabled = true;
+  preview.style.display = "none";
+  imgEmpty.style.display = "flex";
+
+  setRx("rx", "CAPTURING");
+  log("> CAPTURE", "ll-sys");
+  await writeLine("CAPTURE");
+  updateStats();
+}
+
+function downloadImage() {
+  if (!window._lastB64) return;
+  const a = document.createElement("a");
+  a.href = "data:image/jpeg;base64," + window._lastB64;
+  a.download = "lora_" + Date.now() + ".jpg";
+  a.click();
+}
+
+async function listImages() {
+  log("> LIST", "ll-sys");
+  await writeLine("LIST");
+}
+
+async function readLoop() {
+  while (true) {
+    try {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      serialBuf += value;
+      const lines = serialBuf.split("\n");
+      serialBuf = lines.pop();
+      for (const raw of lines) {
+        const line = raw.replace(/\r/g, "").trim();
+        if (line) await processLine(line);
+      }
+    } catch(e) {
+      log("// Read error: " + e.message, "ll-err");
+      break;
+    }
+  }
+}
+
+async function processLine(line) {
+  let cls = "ll-pkt";
+  if (["BOOT","CAM_OK","READY","SETTINGS_OK","STATUS","JPEG_SAVED","CSV_SAVED"].some(k => line.startsWith(k))) cls = "ll-sys";
+  else if (line.startsWith("ERR"))   cls = "ll-err";
+  else if (line === "END")           cls = "ll-end";
+  else if (line.startsWith("START")) cls = "ll-sys";
+
+  if (line.startsWith("PKT,")) {
+    const idx = parseInt(line.split(",")[1], 10);
+    if (idx % 10 === 0) log(line.substring(0, 50) + "...", "ll-pkt");
+  } else {
+    log(line, cls);
+  }
+
+  if (line === "BOOT")       { setConn("ok", "BOOT");  return; }
+  if (line === "CAM_OK")     { setConn("ok", "CAM OK"); return; }
+  if (line === "READY")      { setConn("ok", "READY"); return; }
+  if (line === "SETTINGS_OK"){ setRx("ok", "CFG OK");  return; }
+
+  if (line.startsWith("STATUS,")) {
+    const p = line.split(",");
+    if (p.length >= 4) {
+      document.getElementById("resSel").value    = p[1];
+      document.getElementById("qualRange").value = p[2];
+      document.getElementById("qualVal").textContent = p[2];
+      document.getElementById("pktRange").value  = p[3];
+      document.getElementById("pktVal").textContent  = p[3];
+      settingsDirty = false;
+      applyBtn.disabled = true;
+    }
+    return;
+  }
+
+  if (line.startsWith("ERR")) {
+    phase = "idle";
+    setRx("err", "ERROR");
+    return;
+  }
+
+  if (line.startsWith("START,")) {
+    const p = line.split(",");
+    totalPkts  = parseInt(p[1], 10);
+    totalChunks = parseInt(p[3], 10) || 1;
+    currentChunk = 0;
+    phase = "blasting";
+    setRx("rx", "RECEIVING");
+    updateStats();
+    return;
+  }
+
+  if (line.startsWith("PKT,")) {
+    if (phase !== "blasting" && phase !== "repairing") return;
+    const parts = line.split(",");
+    const idx   = parseInt(parts[1], 10);
+    const chk   = parseInt(parts[2], 10);
+    const data  = parts.slice(3).join(",");
+
+    const localChk = checksum(data);
+    if (localChk !== chk) {
+      statErrors++;
+      return;
+    }
+
+    if (received[idx] === undefined) {
+      received[idx] = data;
+      receivedCount++;
+    }
+
+    updateStats();
+
+    if (receivedCount % 20 === 0) assembleAndRender(false);
+    return;
+  }
+
+  if (line === "END") {
+    clearTimeout(repairTimer);
+    const missing = getMissing();
+    if (missing.length === 0) {
+      if (currentChunk < totalChunks - 1) {
+        phase = "repairing";
+        setRx("rx", "CHUNK");
+        log("// Chunk complete, requesting next", "ll-meta");
+        requestRepair();
+      } else {
+        phase = "idle";
+        assembleAndRender(true);
+        updateStats();
+      }
+    } else {
+      phase = "repairing";
+      setRx("rx", "REPAIRING");
+      log("// " + missing.length + " packets missing", "ll-meta");
+      requestRepair();
+    }
+    return;
+  }
+}
+
+connectBtn.addEventListener("click", connectPort);
+disconnBtn.addEventListener("click", disconnectPort);
+captureBtn.addEventListener("click", startCapture);
+statusBtn.addEventListener("click", requestStatus);
+applyBtn.addEventListener("click", applySettings);
+listBtn.addEventListener("click", listImages);
+dlBtn.addEventListener("click", downloadImage);
+
+setConn("", "OFFLINE");
+setRx(null, null);
+log("// Ready", "ll-meta");
+</script>
+
+</body>
+</html>
